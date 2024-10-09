@@ -1,0 +1,367 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <random>
+
+using namespace std;
+
+class Stock
+{
+private:
+    string symbol;
+    double price;
+    int quantity;
+
+public:
+    Stock() : symbol(""), price(0.0), quantity(0) {}
+    Stock(string sym, double pr, int qty) : symbol(sym), price(pr), quantity(qty) {}
+
+    void updatePrice(double newPrice)
+    {
+        price = newPrice;
+    }
+
+    double getPrice() const
+    {
+        return price;
+    }
+
+    string getSymbol() const
+    {
+        return symbol;
+    }
+
+    void setQuantity(int qty)
+    {
+        quantity = qty;
+    }
+
+    int getQuantity() const
+    {
+        return quantity;
+    }
+
+    void printStock() const
+    {
+        cout << "Symbol: " << symbol << "\nPrice: $" << price << endl;
+    }
+};
+
+class StockList
+{
+private:
+    vector<Stock> stocks;
+
+public:
+    StockList()
+    {
+        // Populate the list with 10 stocks with random prices
+        random_device rd;
+        mt19937 gen(rd());
+        uniform_real_distribution<> dis(10.0, 1000.0);
+        for (int i = 0; i < 10; ++i)
+        {
+            string symbol = "STOCK" + to_string(i + 1);
+            double price = dis(gen);
+            int quantity = 0; // Initial quantity
+            stocks.emplace_back(symbol, price, quantity);
+        }
+    }
+
+    const vector<Stock> &getStocks() const
+    {
+        return stocks;
+    }
+
+    Stock *findStock(const string &symbol)
+    {
+        auto it = find_if(stocks.begin(), stocks.end(), [&](const Stock &s)
+                          { return s.getSymbol() == symbol; });
+        if (it != stocks.end())
+        {
+            return &(*it);
+        }
+        return nullptr;
+    }
+
+    vector<Stock> getGainers(int count)
+    {
+        vector<Stock> gainers = stocks;
+        sort(gainers.begin(), gainers.end(), [](const Stock &a, const Stock &b)
+             { return a.getPrice() > b.getPrice(); });
+        gainers.resize(min(count, static_cast<int>(gainers.size())));
+        return gainers;
+    }
+
+    vector<Stock> getLosers(int count)
+    {
+        vector<Stock> losers = stocks;
+        sort(losers.begin(), losers.end(), [](const Stock &a, const Stock &b)
+             { return a.getPrice() < b.getPrice(); });
+        losers.resize(min(count, static_cast<int>(losers.size())));
+        return losers;
+    }
+};
+
+class StockTradingApp
+{
+private:
+    vector<Stock> holdings;
+    vector<string> watchlist;
+    double accountBalance;
+    string username;
+    string password;
+
+public:
+    StockList stockList;
+    StockTradingApp() : accountBalance(10000.0), username("admin"), password("12345") {}
+
+    bool authenticate()
+    {
+        string inputUsername, inputPassword;
+        int attempts = 0;
+        while (attempts < 3)
+        {
+            cout << "Enter username: ";
+            cin >> inputUsername;
+            cout << "Enter password: ";
+            cin >> inputPassword;
+            if (inputUsername == username && inputPassword == password)
+            {
+                return true;
+            }
+            else
+            {
+                attempts++;
+                cout << "Authentication failed. Please try again." << endl;
+            }
+        }
+        cout << "Maximum attempts reached. Exiting..." << endl;
+        return false;
+    }
+
+    void addToHoldings(const Stock &stock)
+    {
+        holdings.push_back(stock);
+    }
+
+    void removeFromHoldings(const string &symbol)
+    {
+        holdings.erase(remove_if(holdings.begin(), holdings.end(), [&](const Stock &s)
+                                 { return s.getSymbol() == symbol; }),
+                       holdings.end());
+    }
+
+    void viewHoldings()
+    {
+        cout << "Holdings:" << endl;
+        if (holdings.empty())
+        {
+            cout << "No stocks in portfolio" << endl;
+        }
+        else
+        {
+            for (const Stock &s : holdings)
+            {
+                s.printStock();
+                cout << "Quantity: " << s.getQuantity() << " shares" << endl;
+            }
+        }
+    }
+    bool buyStock(Stock &stock, int quantity)
+    {
+        double cost = stock.getPrice() * quantity;
+        if (accountBalance >= cost)
+        {
+            accountBalance -= cost;
+            stock.setQuantity(stock.getQuantity() + quantity);
+            stock.updatePrice(stock.getPrice() * 1.1); // Increase price by 10%
+            addToHoldings(stock);
+            cout << "Bought " << quantity << " shares of " << stock.getSymbol() << ". Remaining balance: $" << accountBalance << endl;
+            return true;
+        }
+        else
+        {
+            cout << "Insufficient balance to buy shares." << endl;
+            return false;
+        }
+    }
+
+    bool sellStock(Stock &stock, int quantity)
+    {
+        int availableQuantity = stock.getQuantity();
+        if (availableQuantity >= quantity)
+        {
+            double revenue = stock.getPrice() * quantity;
+            accountBalance += revenue;
+            stock.setQuantity(availableQuantity - quantity);
+            stock.updatePrice(stock.getPrice() * 0.9); // Decrease price by 10%
+            removeFromHoldings(stock.getSymbol());
+            cout << "Sold " << quantity << " shares of " << stock.getSymbol() << ". Revenue: $" << revenue << ". Remaining balance: $" << accountBalance << endl;
+            return true;
+        }
+        else
+        {
+            cout << "Insufficient shares to sell." << endl;
+            return false;
+        }
+    }
+
+    void addToWatchlist(const string &symbol)
+    {
+        if (find(watchlist.begin(), watchlist.end(), symbol) == watchlist.end())
+        {
+            watchlist.push_back(symbol);
+            cout << "Added " << symbol << " to watchlist." << endl;
+        }
+        else
+        {
+            cout << symbol << " is already in the watchlist." << endl;
+        }
+    }
+
+    void viewWatchlist()
+    {
+        cout << "Watchlist:" << endl;
+        for (const string &symbol : watchlist)
+        {
+            cout << symbol << endl;
+        }
+    }
+
+    void explore()
+    {
+        vector<Stock> gainers = stockList.getGainers(3);
+        vector<Stock> losers = stockList.getLosers(3);
+
+        cout << "Gainers:" << endl;
+        for (const Stock &s : gainers)
+        {
+            s.printStock();
+        }
+
+        cout << "Losers:" << endl;
+        for (const Stock &s : losers)
+        {
+            s.printStock();
+        }
+    }
+
+    void viewListedStocks() {
+        const vector<Stock>& stocks = stockList.getStocks();
+        cout << "Listed Stocks:" << endl;
+        for (const Stock& s : stocks) {
+            s.printStock();
+        }
+    }
+
+    void viewAccountInfo()
+    {
+        cout << "Account Info:" << endl;
+        cout << "Account Balance: $" << accountBalance << endl;
+    }
+
+    void logout()
+    {
+        cout << "Logged out successfully." << endl;
+    }
+};
+
+int main()
+{
+    StockTradingApp app;
+    if (!app.authenticate())
+    {
+        return 1; // Exit the program if authentication fails
+    }
+
+    char choice;
+    do
+    {
+        cout << "Choose an option:" << endl;
+        cout << "1. Explore" << endl;
+        cout << "2. View Listed Stocks" << endl;
+        cout << "3. Add to Watchlist" << endl;
+        cout << "4. View Watchlist" << endl;
+        cout << "5. View Holdings" << endl;
+        cout << "6. Buy Stock" << endl;
+        cout << "7. Sell Stock" << endl;
+        cout << "8. View Account Info" << endl;
+        cout << "9. Logout" << endl;
+        cin >> choice;
+
+        switch (choice)
+        {
+        case '1':
+            app.explore();
+            break;
+        case '2':
+                app.viewListedStocks();
+                break;
+        case '3':
+        {
+            string symbol;
+            cout << "Enter stock symbol to add to watchlist: ";
+            cin >> symbol;
+            app.addToWatchlist(symbol);
+            break;
+        }
+        case '4':
+            app.viewWatchlist();
+            break;
+        case '5':
+            app.viewHoldings();
+            break;
+        case '6':
+        {
+            string symbol;
+            int quantity;
+            cout << "Enter stock symbol to buy: ";
+            cin >> symbol;
+            cout << "Enter quantity: ";
+            cin >> quantity;
+            Stock *stock = app.stockList.findStock(symbol);
+            if (stock)
+            {
+                app.buyStock(*stock, quantity);
+            }
+            else
+            {
+                cout << "Stock not found." << endl;
+            }
+            break;
+        }
+        case '7':
+        {
+            string symbol;
+            int quantity;
+            cout << "Enter stock symbol to sell: ";
+            cin >> symbol;
+            cout << "Enter quantity: ";
+            cin >> quantity;
+            Stock *stock = app.stockList.findStock(symbol);
+            if (stock)
+            {
+                app.sellStock(*stock, quantity);
+            }
+            else
+            {
+                cout << "Stock not found." << endl;
+            }
+            break;
+        }
+        case '8':
+            app.viewAccountInfo();
+            break;
+        case '9':
+            app.logout();
+            break;
+        default:
+            cout << "Invalid choice" << endl;
+            break;
+        }
+    } while (choice != '9');
+
+    return 0;
+}
